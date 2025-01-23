@@ -10,44 +10,46 @@
         android:id="@+id/viewFinder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ImageView
         android:id="@+id/basisImage"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:adjustViewBounds="true"
         android:contentDescription="@string/imageViewDescription"
         android:scaleType="fitXY"
         android:src="@drawable/ic_launcher_background"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintWidth_percent="0.5"
+        />
 
     <ImageView
         android:id="@+id/transparentView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:contentDescription="@string/transparent_image"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
     <SeekBar
         android:id="@+id/zoom_Seek_Bar"
         android:layout_width="0dp"
         android:layout_height="48dp"
-        android:layout_marginEnd="8dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintBottom_toTopOf="@id/camera_flip_button"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/camera_flip_button" />
+        app:layout_constraintStart_toStartOf="parent" />
 
     <Button
         android:id="@+id/camera_flip_button"
@@ -59,25 +61,25 @@
         android:elevation="2dp"
         android:text="@string/front_back_camera_string"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/image_capture_button" />
+        app:layout_constraintEnd_toStartOf="@id/image_capture_button"
+        app:layout_constraintStart_toStartOf="parent" />
 
-<!--
-    <ImageButton
-        android:id="@+id/camera_flip_button"
-        android:layout_width="@dimen/buttonWidth"
-        android:layout_height="@dimen/buttonHeight"
-        android:layout_marginStart="@dimen/marginValue"
-        android:layout_marginEnd="@dimen/marginValue"
-        android:layout_marginBottom="@dimen/marginValueBottom"
-        android:elevation="2dp"
-        android:contentDescription="@string/front_back_camera_string"
-        android:src="@drawable/ic_flip_camera_blue_foreground"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/image_capture_button" />
+    <!--
+        <ImageButton
+            android:id="@+id/camera_flip_button"
+            android:layout_width="@dimen/buttonWidth"
+            android:layout_height="@dimen/buttonHeight"
+            android:layout_marginStart="@dimen/marginValue"
+            android:layout_marginEnd="@dimen/marginValue"
+            android:layout_marginBottom="@dimen/marginValueBottom"
+            android:elevation="2dp"
+            android:contentDescription="@string/front_back_camera_string"
+            android:src="@drawable/ic_flip_camera_blue_foreground"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/image_capture_button" />
 
--->
+    -->
     <Button
         android:id="@+id/image_capture_button"
         android:layout_width="@dimen/buttonWidth"
@@ -88,8 +90,8 @@
         android:elevation="2dp"
         android:text="@string/capture_image_string"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@id/camera_flip_button"
-        app:layout_constraintEnd_toStartOf="@id/buttonLoadPicture" />
+        app:layout_constraintEnd_toStartOf="@id/buttonLoadPicture"
+        app:layout_constraintStart_toEndOf="@id/camera_flip_button" />
 
 
     <!--
@@ -119,8 +121,8 @@
         android:elevation="2dp"
         android:text="@string/loadPictureButtonString"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@id/image_capture_button"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/image_capture_button" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/vertical_center"
@@ -134,41 +136,41 @@
         android:layout_width="@dimen/buttonWidth"
         android:layout_height="@dimen/buttonHeight"
         android:layout_marginStart="@dimen/marginValue"
+        android:layout_marginTop="@dimen/marginValueBottom"
         android:layout_marginEnd="@dimen/marginValue"
         android:layout_marginBottom="@dimen/marginValueBottom"
-        android:layout_marginTop="@dimen/marginValueBottom"
         android:elevation="2dp"
         android:text="@string/image_v_flip"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/image_hflip_button"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/image_hflip_button"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
     <Button
         android:id="@+id/image_hflip_button"
         android:layout_width="@dimen/buttonWidth"
         android:layout_height="@dimen/buttonHeight"
         android:layout_marginStart="@dimen/marginValue"
+        android:layout_marginTop="@dimen/marginValueBottom"
         android:layout_marginEnd="@dimen/marginValue"
         android:layout_marginBottom="@dimen/marginValueBottom"
-        android:layout_marginTop="@dimen/marginValueBottom"
         android:elevation="2dp"
         android:text="@string/image_h_flip"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/image_rotate_button"
         app:layout_constraintStart_toEndOf="@+id/image_vflip_button"
-        app:layout_constraintEnd_toStartOf="@id/image_rotate_button"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
     <Button
         android:id="@+id/image_rotate_button"
         android:layout_width="@dimen/buttonWidth"
         android:layout_height="@dimen/buttonHeight"
         android:layout_marginStart="@dimen/marginValue"
+        android:layout_marginTop="@dimen/marginValueBottom"
         android:layout_marginEnd="@dimen/marginValue"
         android:layout_marginBottom="@dimen/marginValueBottom"
-        android:layout_marginTop="@dimen/marginValueBottom"
         android:elevation="2dp"
         android:text="@string/rotate_image_string"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/image_hflip_button"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

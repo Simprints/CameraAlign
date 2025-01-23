@@ -20,7 +20,6 @@ import android.provider.MediaStore
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
 import android.widget.SeekBar
 import android.widget.TextView
@@ -36,7 +35,6 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import androidx.exifinterface.media.ExifInterface
 import com.google.android.material.snackbar.Snackbar
 import org.jshobbysoft.cameraalign.databinding.ActivityMainBinding
@@ -53,7 +51,6 @@ class MainActivity : AppCompatActivity() {
     private var imageCapture: ImageCapture? = null
     private var cameraSel = CameraSelector.DEFAULT_BACK_CAMERA
     private var camera: Camera? = null
-    private var touchPixel: Int? = null
     private var vflipState = 1
     private var hflipState = 1
 
@@ -79,8 +76,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(viewBinding.root)
 
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        val useGreenScreen = prefs.getBoolean("greenScreenEffectKey", false)
-        val greenScreenEffectTarget = prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
+        val greenScreenEffectTarget =
+            prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
 
         // Request camera permissions or start camera
         if (allPermissionsGranted()) {
@@ -91,14 +88,18 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // 1) Load saved background URI from preferences
-        val backgroundUriString = prefs.getString("background_uri_key", "")
-        if (backgroundUriString.isNullOrEmpty()) {
-            // If no saved URI, set fallback resource
-            setBasisImage(null)
+        if (intent.getStringExtra("image") != null) {
+            setImageFromIntent()
         } else {
-            // Load from saved URI
-            setBasisImage(Uri.parse(backgroundUriString))
+            // 1) Load saved background URI from preferences
+            val backgroundUriString = prefs.getString("background_uri_key", "")
+            if (backgroundUriString.isNullOrEmpty()) {
+                // If no saved URI, set fallback resource
+                setBasisImage(null)
+            } else {
+                // Load from saved URI
+                setBasisImage(Uri.parse(backgroundUriString))
+            }
         }
 
         // 2) Set transparency (alpha) for the basis image
@@ -107,57 +108,11 @@ class MainActivity : AppCompatActivity() {
         val transparencyValueFloat = transparencyValue / 255
         viewBinding.basisImage.alpha = transparencyValueFloat
 
-        // 3) Handle greenscreen toggles
-        if (useGreenScreen) {
-            if (greenScreenEffectTarget == "transparentColorPreview") {
-                viewBinding.viewFinder.alpha = 0f
-            } else if (greenScreenEffectTarget == "transparentColorImage") {
-                viewBinding.basisImage.alpha = 0f
-                val rawImageDrawable = viewBinding.basisImage.drawable
-                val rawImageBitmap = rawImageDrawable.toBitmap()
-                val transparentImageBitmap = toTransparency(rawImageBitmap)
-                viewBinding.transparentView.setImageBitmap(transparentImageBitmap)
-            }
+        // 3) Visibility
+        viewBinding.viewFinder.visibility = View.VISIBLE
+        viewBinding.basisImage.visibility = View.VISIBLE
+        viewBinding.transparentView.visibility = View.INVISIBLE
 
-            viewBinding.transparentView.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        var red: Int
-                        var green: Int
-                        var blue: Int
-                        val drawable = viewBinding.transparentView.drawable
-                        val bitmap = drawable.toBitmap()
-                        touchPixel = bitmap.getPixel(event.x.toInt(), event.y.toInt())
-                        touchPixel?.let {
-                            red = Color.red(it)
-                            green = Color.green(it)
-                            blue = Color.blue(it)
-                            // Save the newly chosen color to SharedPreferences
-                            prefs.edit().putString("textRedKey", red.toString()).apply()
-                            prefs.edit().putString("textGreenKey", green.toString()).apply()
-                            prefs.edit().putString("textBlueKey", blue.toString()).apply()
-
-                            Toast.makeText(
-                                this,
-                                "Chosen color was red: $red / green: $green / blue: $blue",
-                                Toast.LENGTH_SHORT
-                            ).show()
-
-                            // Re-render transparency
-                            val updatedDrawable = viewBinding.basisImage.drawable
-                            val updatedBitmap = updatedDrawable.toBitmap()
-                            val transparentImageBitmap = toTransparency(updatedBitmap)
-                            viewBinding.transparentView.setImageBitmap(transparentImageBitmap)
-                        }
-                    }
-                }
-                true
-            }
-        } else {
-            viewBinding.viewFinder.visibility = View.VISIBLE
-            viewBinding.basisImage.visibility = View.VISIBLE
-            viewBinding.transparentView.visibility = View.INVISIBLE
-        }
 
         // 4) Button to load a new picture from gallery
         viewBinding.buttonLoadPicture.setOnClickListener {
@@ -207,18 +162,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 10) Zoom seek bar
-        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object :
+            SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 camera?.cameraControl?.setLinearZoom(progress / 100f)
             }
+
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
         cameraExecutor = Executors.newSingleThreadExecutor()
-
-        // If there was an Intent with an image, let’s load it
-        setImageFromIntent()
     }
 
     /**
@@ -266,10 +220,44 @@ class MainActivity : AppCompatActivity() {
      * Reads the "image" extra from the Intent and calls [setBasisImage] if present.
      */
     private fun setImageFromIntent() {
-        val imageUriString = intent.getStringExtra("image")
-        if (!imageUriString.isNullOrEmpty()) {
-            setBasisImage(Uri.parse(imageUriString))
+        val imageName = intent.getStringExtra("image")
+
+        when (imageName) {
+            "ear_left" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.ear_left)
+            }
+
+            "ear_right" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.ear_right)
+            }
+
+            "foot_left" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.foot_left)
+            }
+
+            "foot_right" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.foot_right)
+            }
+
+            "hand_left" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.hand_left)
+            }
+
+            "hand_right" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.hand_right)
+            }
+
+            "head" -> {
+                viewBinding.basisImage.setImageResource(R.drawable.head)
+            }
+
+            else -> setBasisImage(null)
         }
+
+        viewBinding.imageHflipButton.visibility = View.GONE
+        viewBinding.imageVflipButton.visibility = View.GONE
+        viewBinding.imageRotateButton.visibility = View.GONE
+        viewBinding.buttonLoadPicture.visibility = View.GONE
     }
 
     /**
@@ -291,7 +279,8 @@ class MainActivity : AppCompatActivity() {
                     setBasisImage(uri)
 
                     // Store the new background URI in shared prefs
-                    val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                    val prefs =
+                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
                     prefs.edit().putString("background_uri_key", uri.toString()).apply()
                 }
             }
@@ -384,7 +373,10 @@ class MainActivity : AppCompatActivity() {
                             if (pfd != null) {
                                 val zS = viewBinding.zoomSeekBar.progress
                                 val exif = ExifInterface(pfd.fileDescriptor)
-                                exif.setAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO, zS.toString())
+                                exif.setAttribute(
+                                    ExifInterface.TAG_DIGITAL_ZOOM_RATIO,
+                                    zS.toString()
+                                )
                                 exif.saveAttributes()
                             }
                         }
@@ -414,6 +406,7 @@ class MainActivity : AppCompatActivity() {
                         return Environment.getExternalStorageDirectory().toString() + "/" + split[1]
                     }
                 }
+
                 isDownloadsDocument(uri) -> {
                     val id = DocumentsContract.getDocumentId(uri)
                     val contentUri = ContentUris.withAppendedId(
@@ -421,6 +414,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     return getDataColumn(context!!, contentUri, null, null)
                 }
+
                 isMediaDocument(uri) -> {
                     val docId = DocumentsContract.getDocumentId(uri)
                     val split = docId.split(":")
@@ -436,6 +430,7 @@ class MainActivity : AppCompatActivity() {
                     val selectionArgs = arrayOf(split[1] as String?)
                     return getDataColumn(context!!, contentUri, selection, selectionArgs)
                 }
+
                 else -> {
                     // LocalStorageProvider - the path is the docId itself
                     return DocumentsContract.getDocumentId(uri)
@@ -474,7 +469,8 @@ class MainActivity : AppCompatActivity() {
         val column = "_data"
         val projection = arrayOf(column)
         try {
-            cursor = context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
+            cursor =
+                context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
             if (cursor != null && cursor.moveToFirst()) {
                 val columnIndex = cursor.getColumnIndexOrThrow(column)
                 return cursor.getString(columnIndex)
@@ -523,7 +519,8 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        val greenScreenEffectTarget = prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
+        val greenScreenEffectTarget =
+            prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
                 startCamera(cameraSel, greenScreenEffectTarget)
@@ -551,6 +548,7 @@ class MainActivity : AppCompatActivity() {
                 startActivity(settingsIntent)
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
