@@ -223,27 +223,27 @@ class MainActivity : AppCompatActivity() {
         val imageName = intent.getStringExtra("image")
 
         when (imageName) {
-            "ear_left" -> {
+            "left_ear" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.ear_left)
             }
 
-            "ear_right" -> {
+            "right_ear" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.ear_right)
             }
 
-            "foot_left" -> {
+            "left_foot" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.foot_left)
             }
 
-            "foot_right" -> {
+            "right_foot" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.foot_right)
             }
 
-            "hand_left" -> {
+            "left_hand" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.hand_left)
             }
 
-            "hand_right" -> {
+            "right_hand" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.hand_right)
             }
 
