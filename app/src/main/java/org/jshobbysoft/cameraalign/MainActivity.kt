@@ -9,8 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,7 +26,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -36,6 +33,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
+import androidx.preference.PreferenceManager
 import com.google.android.material.snackbar.Snackbar
 import org.jshobbysoft.cameraalign.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
@@ -47,27 +45,31 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
-    private var imageUri: Uri? = null
-    private var imageCapture: ImageCapture? = null
-    private var cameraSel = CameraSelector.DEFAULT_BACK_CAMERA
+
     private var camera: Camera? = null
+    private var cameraSel = CameraSelector.DEFAULT_BACK_CAMERA
+    private var imageCapture: ImageCapture? = null
+    private var imageUri: Uri? = null
+
+    // Flip states
     private var vflipState = 1
     private var hflipState = 1
+
+    // If we come in via an Intent that specifies an image type (like "left_ear", etc.)
     private var imageName = ""
 
     companion object {
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
         private const val REQUEST_CODE_PERMISSIONS = 10
 
-        private val REQUIRED_PERMISSIONS =
-            mutableListOf(
-                Manifest.permission.CAMERA,
-            ).apply {
-                // For older Android versions, we also need WRITE_EXTERNAL_STORAGE.
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                }
-            }.toTypedArray()
+        private val REQUIRED_PERMISSIONS = mutableListOf(
+            Manifest.permission.CAMERA
+        ).apply {
+            // For older Android versions, we also need WRITE_EXTERNAL_STORAGE.
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -76,81 +78,70 @@ class MainActivity : AppCompatActivity() {
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
 
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-
-        // Request camera permissions or start camera
+        // Camera permissions check
         if (allPermissionsGranted()) {
             startCamera(cameraSel)
         } else {
-            ActivityCompat.requestPermissions(
-                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
-            )
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
+        // Handle incoming intent (if any)
         if (intent.getStringExtra("image") != null) {
             setImageFromIntent()
         } else {
-            // 1) Load saved background URI from preferences
-            val backgroundUriString = prefs.getString("background_uri_key", "")
-            if (backgroundUriString.isNullOrEmpty()) {
-                // If no saved URI, set fallback resource
-                setBasisImage(null)
-            } else {
-                // Load from saved URI
-                setBasisImage(Uri.parse(backgroundUriString))
-            }
+            // Load saved background if available
+            loadSavedBackground()
         }
 
-        // 2) Set transparency (alpha) for the basis image
-        val transparencyValue =
-            prefs.getString("textTransparencyKey", "125")!!.toFloat()
-        val transparencyValueFloat = transparencyValue / 255
-        viewBinding.basisImage.alpha = transparencyValueFloat
+        // Apply transparency to the basis image
+        applySavedTransparency()
 
-        // 3) Visibility
-        viewBinding.viewFinder.visibility = View.VISIBLE
-        viewBinding.basisImage.visibility = View.VISIBLE
-        viewBinding.transparentView.visibility = View.INVISIBLE
+        // Show/hide appropriate views
+        initializeDefaultVisibility()
 
+        // Set up UI listeners (buttons, seek bars, etc.)
+        initUIListeners()
 
-        // 4) Button to load a new picture from gallery
+        // Initialize camera executor
+        cameraExecutor = Executors.newSingleThreadExecutor()
+    }
+
+    /**
+     * Sets up various click/seek listeners for UI elements.
+     */
+    private fun initUIListeners() {
+        // Load from gallery
         viewBinding.buttonLoadPicture.setOnClickListener {
-            val gallery =
-                Intent(Intent.ACTION_OPEN_DOCUMENT, MediaStore.Images.Media.INTERNAL_CONTENT_URI)
-            resultLauncher.launch(gallery)
+            val galleryIntent = Intent(
+                Intent.ACTION_OPEN_DOCUMENT,
+                MediaStore.Images.Media.INTERNAL_CONTENT_URI
+            )
+            resultLauncher.launch(galleryIntent)
         }
 
-        // 5) Button to capture photo
-        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        // Take photo
+        viewBinding.imageCaptureButton.setOnClickListener {
+            takePhoto()
+        }
 
-        // 6) Rotate button
+        // Rotate image
         viewBinding.imageRotateButton.setOnClickListener {
-            viewBinding.basisImage.rotation += 90
+            viewBinding.basisImage.rotation += 90f
         }
 
-        // 7) Vertical flip button
+        // Vertical flip button
         viewBinding.imageVflipButton.setOnClickListener {
-            if (vflipState == 1) {
-                viewBinding.basisImage.scaleX = -1f
-                vflipState = -1
-            } else {
-                viewBinding.basisImage.scaleX = 1f
-                vflipState = 1
-            }
+            // Flip across the vertical axis => scaleX toggles -1 / 1
+            vflipState = toggleFlip(viewBinding.basisImage.scaleX, vflipState, true)
         }
 
-        // 8) Horizontal flip button
+        // Horizontal flip button
         viewBinding.imageHflipButton.setOnClickListener {
-            if (hflipState == 1) {
-                viewBinding.basisImage.scaleY = -1f
-                hflipState = -1
-            } else {
-                viewBinding.basisImage.scaleY = 1f
-                hflipState = 1
-            }
+            // Flip across the horizontal axis => scaleY toggles -1 / 1
+            hflipState = toggleFlip(viewBinding.basisImage.scaleY, hflipState, false)
         }
 
-        // 9) Camera (front/back) toggle
+        // Front/back camera toggle
         viewBinding.cameraFlipButton.setOnClickListener {
             cameraSel = if (cameraSel == CameraSelector.DEFAULT_FRONT_CAMERA) {
                 CameraSelector.DEFAULT_BACK_CAMERA
@@ -160,134 +151,61 @@ class MainActivity : AppCompatActivity() {
             startCamera(cameraSel)
         }
 
-        // 10) Zoom seek bar
-        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object :
-            SeekBar.OnSeekBarChangeListener {
+        // Zoom seek bar
+        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 camera?.cameraControl?.setLinearZoom(progress / 100f)
             }
-
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
-
-        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     /**
-     * Helper function to set the basisImage from a given [Uri].
-     * - If [uri] is null or empty, fall back to a default resource.
-     * - Otherwise, set the image and attempt to read EXIF zoom data.
+     * Simple helper to toggle the scale factor on the X or Y axis.
      */
-    private fun setBasisImage(uri: Uri?) {
-        if (uri == null) {
-            // Fallback if the URI is empty or invalid
-            viewBinding.basisImage.setImageResource(R.drawable.ic_launcher_background)
-            return
+    private fun toggleFlip(currentScale: Float, flipState: Int, isVerticalAxis: Boolean): Int {
+        val newState = if (flipState == 1) -1 else 1
+        val scale = if (newState == 1) 1f else -1f
+        if (isVerticalAxis) {
+            viewBinding.basisImage.scaleX = scale
+        } else {
+            viewBinding.basisImage.scaleY = scale
         }
+        return newState
+    }
 
-        try {
-            // Attempt to load URI
-            viewBinding.basisImage.setImageURI(uri)
+    /**
+     * Check if all required permissions are granted.
+     */
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
 
-            // Read EXIF data and apply saved zoom
-            val readOnlyMode = "r"
-            contentResolver.openFileDescriptor(uri, readOnlyMode).use { pfd ->
-                if (pfd != null) {
-                    val exif = ExifInterface(pfd.fileDescriptor)
-                    val zoomStateString = exif.getAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO)
-                    if (!zoomStateString.isNullOrEmpty()) {
-                        val zoomValue = zoomStateString.toFloat()
-                        viewBinding.zoomSeekBar.progress = zoomValue.toInt()
-                        camera?.cameraControl?.setLinearZoom(zoomValue / 100f)
-                    }
-                }
+    /**
+     * Called when user has accepted/denied the permissions we requested.
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                startCamera(cameraSel)
+            } else {
+                Toast.makeText(
+                    this,
+                    "Permissions not granted by the user.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                finish()
             }
-        } catch (e: Exception) {
-            // If something goes wrong, revert to fallback and warn user
-            viewBinding.basisImage.setImageResource(R.drawable.ic_launcher_background)
-            Toast.makeText(
-                this,
-                "Background file does not exist or cannot be opened. Please choose a different file.",
-                Toast.LENGTH_LONG
-            ).show()
-            e.printStackTrace()
         }
     }
 
     /**
-     * Reads the "image" extra from the Intent and calls [setBasisImage] if present.
+     * Initialize camera with the specified CameraSelector.
      */
-    private fun setImageFromIntent() {
-        val imageType = intent.getStringExtra("image")
-        val id = intent.getStringExtra("id")
-
-        imageName = "$id-$imageType"
-
-        when (imageType) {
-            "left_ear" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.ear_left)
-            }
-
-            "right_ear" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.ear_right)
-            }
-
-            "left_foot" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.foot_left)
-            }
-
-            "right_foot" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.foot_right)
-            }
-
-            "left_hand" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.hand_left)
-            }
-
-            "right_hand" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.hand_right)
-            }
-
-            "head" -> {
-                viewBinding.basisImage.setImageResource(R.drawable.head)
-            }
-
-            else -> setBasisImage(null)
-        }
-
-        viewBinding.imageHflipButton.visibility = View.GONE
-        viewBinding.imageVflipButton.visibility = View.GONE
-        viewBinding.imageRotateButton.visibility = View.GONE
-        viewBinding.buttonLoadPicture.visibility = View.GONE
-    }
-
-    /**
-     * Callback from image picker (Gallery).
-     * Once we get the Uri, we set the basisImage and store the Uri to preferences.
-     */
-    private var resultLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val data: Intent? = result.data
-                imageUri = data?.data
-                imageUri?.let { uri ->
-                    val contentResolver = applicationContext.contentResolver
-                    val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    contentResolver.takePersistableUriPermission(uri, takeFlags)
-
-                    // Update the basis image via the single function
-                    setBasisImage(uri)
-
-                    // Store the new background URI in shared prefs
-                    val prefs =
-                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-                    prefs.edit().putString("background_uri_key", uri.toString()).apply()
-                }
-            }
-        }
-
     private fun startCamera(cameraSelector: CameraSelector) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
@@ -296,7 +214,6 @@ class MainActivity : AppCompatActivity() {
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
             }
-
             imageCapture = ImageCapture.Builder().build()
 
             try {
@@ -305,20 +222,21 @@ class MainActivity : AppCompatActivity() {
                     this, cameraSelector, preview, imageCapture
                 )
             } catch (exc: Exception) {
-                // Log or handle binding error
+                // Handle error if needed
             }
-
         }, ContextCompat.getMainExecutor(this))
     }
 
+    /**
+     * Captures a photo using the current [imageCapture] configuration
+     * and saves it to MediaStore.
+     */
     private fun takePhoto() {
         val imageCapture = imageCapture ?: return
 
         // Create time-stamped name and MediaStore entry
-        val name = "$imageName-${
-            SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-                .format(System.currentTimeMillis())
-        }"
+        val name = "$imageName-${SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+            .format(System.currentTimeMillis())}"
 
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
@@ -338,40 +256,172 @@ class MainActivity : AppCompatActivity() {
             cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
-                    // Handle error
+                    // Handle error if needed
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    // Save zoom in exif data
-                    val resolver = applicationContext.contentResolver
-                    val readOnlyMode = "rw"
+                    // Save zoom in Exif
                     output.savedUri?.let { savedUri ->
-                        resolver.openFileDescriptor(savedUri, readOnlyMode).use { pfd ->
-                            if (pfd != null) {
-                                val zS = viewBinding.zoomSeekBar.progress
-                                val exif = ExifInterface(pfd.fileDescriptor)
-                                exif.setAttribute(
-                                    ExifInterface.TAG_DIGITAL_ZOOM_RATIO,
-                                    zS.toString()
-                                )
-                                exif.saveAttributes()
-                            }
-                        }
-                        val photoPath = getPath(applicationContext, savedUri)
-                        val msg = "Photo capture succeeded: $photoPath"
-                        val sb = Snackbar.make(viewBinding.root, msg, Snackbar.LENGTH_LONG)
-                        val sbView: View = sb.view
-                        val textView: TextView =
-                            sbView.findViewById(com.google.android.material.R.id.snackbar_text)
-                        textView.maxLines = 4
-                        sb.show()
+                        saveExifZoom(savedUri)
+                        showCaptureSnackbar(savedUri)
                     }
                 }
             }
         )
     }
 
-    // Utility functions for path resolution
+    /**
+     * Write the zoom level from zoomSeekBar to Exif data.
+     */
+    private fun saveExifZoom(savedUri: Uri) {
+        val readWriteMode = "rw"
+        contentResolver.openFileDescriptor(savedUri, readWriteMode).use { pfd ->
+            if (pfd != null) {
+                val exif = ExifInterface(pfd.fileDescriptor)
+                val zoomValue = viewBinding.zoomSeekBar.progress
+                exif.setAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO, zoomValue.toString())
+                exif.saveAttributes()
+            }
+        }
+    }
+
+    /**
+     * Show a Snackbar indicating successful capture, including the file path.
+     */
+    private fun showCaptureSnackbar(savedUri: Uri) {
+        val photoPath = getPath(applicationContext, savedUri)
+        val msg = "Photo capture succeeded: $photoPath"
+        val snackbar = Snackbar.make(viewBinding.root, msg, Snackbar.LENGTH_LONG)
+        val sbView: View = snackbar.view
+        val textView: TextView = sbView.findViewById(com.google.android.material.R.id.snackbar_text)
+        textView.maxLines = 4
+        snackbar.show()
+    }
+
+    /**
+     * Sets the basisImage from an Intent extra (e.g., "left_ear", "right_foot", etc.),
+     * or uses a default resource if unknown.
+     */
+    private fun setImageFromIntent() {
+        val imageType = intent.getStringExtra("image")
+        val id = intent.getStringExtra("id")
+        imageName = "$id-$imageType"
+
+        when (imageType) {
+            "left_ear"  -> viewBinding.basisImage.setImageResource(R.drawable.ear_left)
+            "right_ear" -> viewBinding.basisImage.setImageResource(R.drawable.ear_right)
+            "left_foot" -> viewBinding.basisImage.setImageResource(R.drawable.foot_left)
+            "right_foot"-> viewBinding.basisImage.setImageResource(R.drawable.foot_right)
+            "left_hand" -> viewBinding.basisImage.setImageResource(R.drawable.hand_left)
+            "right_hand"-> viewBinding.basisImage.setImageResource(R.drawable.hand_right)
+            "head"      -> viewBinding.basisImage.setImageResource(R.drawable.head)
+            else        -> setBasisImage(null)
+        }
+
+        // Hide UI elements that aren't needed in this mode
+        viewBinding.imageHflipButton.visibility = View.GONE
+        viewBinding.imageVflipButton.visibility = View.GONE
+        viewBinding.imageRotateButton.visibility = View.GONE
+        viewBinding.buttonLoadPicture.visibility = View.GONE
+    }
+
+    /**
+     * Load the user-selected background from shared preferences, if any.
+     */
+    private fun loadSavedBackground() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val backgroundUriString = prefs.getString("background_uri_key", "")
+        if (backgroundUriString.isNullOrEmpty()) {
+            setBasisImage(null)
+        } else {
+            setBasisImage(Uri.parse(backgroundUriString))
+        }
+    }
+
+    /**
+     * Helper function to set the basisImage from a given [Uri].
+     * - If [uri] is null, fall back to a default resource.
+     * - Otherwise, set the image and apply any saved zoom from EXIF.
+     */
+    private fun setBasisImage(uri: Uri?) {
+        if (uri == null) {
+            // Fallback if the URI is empty
+            viewBinding.basisImage.setImageResource(R.drawable.ic_launcher_background)
+            return
+        }
+
+        try {
+            // Attempt to load URI
+            viewBinding.basisImage.setImageURI(uri)
+
+            // Read EXIF data (zoom) and apply it
+            val readOnlyMode = "r"
+            contentResolver.openFileDescriptor(uri, readOnlyMode).use { pfd ->
+                pfd?.fileDescriptor?.let { fd ->
+                    val exif = ExifInterface(fd)
+                    exif.getAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO)?.toFloat()?.let { zoom ->
+                        viewBinding.zoomSeekBar.progress = zoom.toInt()
+                        camera?.cameraControl?.setLinearZoom(zoom / 100f)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // If something goes wrong, revert to fallback and warn user
+            viewBinding.basisImage.setImageResource(R.drawable.ic_launcher_background)
+            Toast.makeText(
+                this,
+                "Background file does not exist or cannot be opened. Please choose a different file.",
+                Toast.LENGTH_LONG
+            ).show()
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Apply the saved transparency (alpha) to the basis image, from shared preferences.
+     */
+    private fun applySavedTransparency() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val transparencyValue = prefs.getString("textTransparencyKey", "125")!!.toFloat()
+        viewBinding.basisImage.alpha = transparencyValue / 255
+    }
+
+    /**
+     * Initialize the default visibility of certain views.
+     */
+    private fun initializeDefaultVisibility() {
+        viewBinding.viewFinder.visibility = View.VISIBLE
+        viewBinding.basisImage.visibility = View.VISIBLE
+        viewBinding.transparentView.visibility = View.INVISIBLE
+    }
+
+    /**
+     * Callback from image picker (Gallery). Once we get the Uri,
+     * we set the basisImage and store the Uri in preferences.
+     */
+    private var resultLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data: Intent? = result.data
+                imageUri = data?.data
+                imageUri?.let { uri ->
+                    val contentResolver = applicationContext.contentResolver
+                    val takeFlags =
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    contentResolver.takePersistableUriPermission(uri, takeFlags)
+
+                    setBasisImage(uri)
+
+                    // Store new background URI in shared prefs
+                    val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+                    prefs.edit().putString("background_uri_key", uri.toString()).apply()
+                }
+            }
+        }
+
+    /**
+     * Resolve a Uri to an absolute file path, handling various providers (downloads, media, etc.).
+     */
     fun getPath(context: Context?, uri: Uri): String? {
         if (DocumentsContract.isDocumentUri(context, uri)) {
             when {
@@ -383,7 +433,6 @@ class MainActivity : AppCompatActivity() {
                         return Environment.getExternalStorageDirectory().toString() + "/" + split[1]
                     }
                 }
-
                 isDownloadsDocument(uri) -> {
                     val id = DocumentsContract.getDocumentId(uri)
                     val contentUri = ContentUris.withAppendedId(
@@ -391,30 +440,26 @@ class MainActivity : AppCompatActivity() {
                     )
                     return getDataColumn(context!!, contentUri, null, null)
                 }
-
                 isMediaDocument(uri) -> {
                     val docId = DocumentsContract.getDocumentId(uri)
                     val split = docId.split(":")
                     val type = split[0]
-                    var contentUri: Uri? = null
-                    contentUri = when (type) {
+                    val contentUri = when (type) {
                         "image" -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
                         "video" -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
                         "audio" -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                         else -> null
                     }
                     val selection = "_id=?"
-                    val selectionArgs = arrayOf(split[1] as String?)
+                    val selectionArgs = arrayOf<String?>(split[1])
                     return getDataColumn(context!!, contentUri, selection, selectionArgs)
                 }
-
                 else -> {
                     // LocalStorageProvider - the path is the docId itself
                     return DocumentsContract.getDocumentId(uri)
                 }
             }
         } else if ("content".equals(uri.scheme, true)) {
-            // Return the remote address
             return if (isGooglePhotosUri(uri)) {
                 uri.lastPathSegment
             } else {
@@ -426,6 +471,30 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
+    /**
+     * Query the system for the _data column matching the given Uri.
+     */
+    private fun getDataColumn(
+        context: Context,
+        uri: Uri?,
+        selection: String?,
+        selectionArgs: Array<String?>?
+    ): String? {
+        var cursor: Cursor? = null
+        val column = "_data"
+        val projection = arrayOf(column)
+        return try {
+            cursor = context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
+            if (cursor != null && cursor.moveToFirst()) {
+                val columnIndex = cursor.getColumnIndexOrThrow(column)
+                cursor.getString(columnIndex)
+            } else null
+        } finally {
+            cursor?.close()
+        }
+    }
+
+    // Authority checks
     private fun isExternalStorageDocument(uri: Uri) =
         "com.android.externalstorage.documents" == uri.authority
 
@@ -438,78 +507,7 @@ class MainActivity : AppCompatActivity() {
     private fun isGooglePhotosUri(uri: Uri) =
         "com.google.android.apps.photos.content" == uri.authority
 
-    private fun getDataColumn(
-        context: Context, uri: Uri?, selection: String?,
-        selectionArgs: Array<String?>?
-    ): String? {
-        var cursor: Cursor? = null
-        val column = "_data"
-        val projection = arrayOf(column)
-        try {
-            cursor =
-                context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
-            if (cursor != null && cursor.moveToFirst()) {
-                val columnIndex = cursor.getColumnIndexOrThrow(column)
-                return cursor.getString(columnIndex)
-            }
-        } finally {
-            cursor?.close()
-        }
-        return null
-    }
-
-    /**
-     * Convert matching (red, green, blue) pixels to transparency in a bitmap.
-     */
-    private fun toTransparency(bmpOriginal: Bitmap?): Bitmap {
-        val width = bmpOriginal?.width ?: 100
-        val height = bmpOriginal?.height ?: 100
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-
-        val transparentRed = prefs.getString("textRedKey", "0")?.toInt() ?: 0
-        val transparentGreen = prefs.getString("textGreenKey", "0")?.toInt() ?: 0
-        val transparentBlue = prefs.getString("textBlueKey", "0")?.toInt() ?: 0
-
-        val bmpTransparent = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val allPixels = IntArray(width * height)
-        bmpOriginal?.getPixels(allPixels, 0, width, 0, 0, width, height)
-
-        allPixels.forEachIndexed { index, pixel ->
-            val r = Color.red(pixel)
-            val g = Color.green(pixel)
-            val b = Color.blue(pixel)
-            if (r == transparentRed && g == transparentGreen && b == transparentBlue) {
-                // make transparent
-                allPixels[index] = Color.argb(0, r, g, b)
-            }
-        }
-        bmpTransparent.setPixels(allPixels, 0, width, 0, 0, width, height)
-        return bmpTransparent
-    }
-
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (allPermissionsGranted()) {
-                startCamera(cameraSel)
-            } else {
-                Toast.makeText(
-                    this,
-                    "Permissions not granted by the user.",
-                    Toast.LENGTH_SHORT
-                ).show()
-                finish()
-            }
-        }
-    }
-
+    // Menu / settings handling
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         val inflater: MenuInflater = menuInflater
         inflater.inflate(R.menu.menu_settings, menu)
@@ -523,7 +521,6 @@ class MainActivity : AppCompatActivity() {
                 startActivity(settingsIntent)
                 true
             }
-
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -533,4 +530,3 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor.shutdown()
     }
 }
-
