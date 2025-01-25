@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private var vflipState = 1
     private var hflipState = 1
+    private var imageName = ""
 
     companion object {
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
@@ -220,9 +221,12 @@ class MainActivity : AppCompatActivity() {
      * Reads the "image" extra from the Intent and calls [setBasisImage] if present.
      */
     private fun setImageFromIntent() {
-        val imageName = intent.getStringExtra("image")
+        val imageType = intent.getStringExtra("image")
+        val id = intent.getStringExtra("id")
 
-        when (imageName) {
+        imageName = "$id-$imageType"
+
+        when (imageType) {
             "left_ear" -> {
                 viewBinding.basisImage.setImageResource(R.drawable.ear_left)
             }
@@ -340,8 +344,10 @@ class MainActivity : AppCompatActivity() {
         val imageCapture = imageCapture ?: return
 
         // Create time-stamped name and MediaStore entry
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())
+        val name = "$imageName-${
+            SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+                .format(System.currentTimeMillis())
+        }"
 
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
