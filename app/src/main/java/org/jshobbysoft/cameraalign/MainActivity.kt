@@ -77,12 +77,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(viewBinding.root)
 
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        val greenScreenEffectTarget =
-            prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
 
         // Request camera permissions or start camera
         if (allPermissionsGranted()) {
-            startCamera(cameraSel, greenScreenEffectTarget)
+            startCamera(cameraSel)
         } else {
             ActivityCompat.requestPermissions(
                 this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
@@ -159,7 +157,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 CameraSelector.DEFAULT_FRONT_CAMERA
             }
-            startCamera(cameraSel, greenScreenEffectTarget)
+            startCamera(cameraSel)
         }
 
         // 10) Zoom seek bar
@@ -290,7 +288,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    private fun startCamera(cameraSelector: CameraSelector, gSET: String?) {
+    private fun startCamera(cameraSelector: CameraSelector) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
@@ -299,42 +297,15 @@ class MainActivity : AppCompatActivity() {
                 it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
             }
 
-            // Decide if we need to do real-time analysis for transparency
-            if (gSET == "transparentColorPreview") {
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
+            imageCapture = ImageCapture.Builder().build()
 
-                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    runOnUiThread {
-                        val rawPreview = viewBinding.viewFinder.bitmap
-                        val bitmapTransparency = toTransparency(rawPreview)
-                        viewBinding.transparentView.setImageBitmap(bitmapTransparency)
-                    }
-                    imageProxy.close()
-                }
-
-                imageCapture = ImageCapture.Builder().build()
-
-                try {
-                    cameraProvider.unbindAll()
-                    camera = cameraProvider.bindToLifecycle(
-                        this, cameraSelector, preview, imageCapture, imageAnalysis
-                    )
-                } catch (exc: Exception) {
-                    // Log or handle binding error
-                }
-            } else {
-                imageCapture = ImageCapture.Builder().build()
-
-                try {
-                    cameraProvider.unbindAll()
-                    camera = cameraProvider.bindToLifecycle(
-                        this, cameraSelector, preview, imageCapture
-                    )
-                } catch (exc: Exception) {
-                    // Log or handle binding error
-                }
+            try {
+                cameraProvider.unbindAll()
+                camera = cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture
+                )
+            } catch (exc: Exception) {
+                // Log or handle binding error
             }
 
         }, ContextCompat.getMainExecutor(this))
@@ -364,7 +335,7 @@ class MainActivity : AppCompatActivity() {
         // Capture the picture
         imageCapture.takePicture(
             outputOptions,
-            ContextCompat.getMainExecutor(this),
+            cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     // Handle error
@@ -524,12 +495,10 @@ class MainActivity : AppCompatActivity() {
         requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        val greenScreenEffectTarget =
-            prefs.getString("greenScreenEffectTargetKey", "transparentColorPreview")
+
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                startCamera(cameraSel, greenScreenEffectTarget)
+                startCamera(cameraSel)
             } else {
                 Toast.makeText(
                     this,
