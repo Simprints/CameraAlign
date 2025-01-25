@@ -24,8 +24,8 @@
     </string-array>
 
     <string-array name="greenScreenValues">
-        <item>transparentColorPreview</item>
         <item>transparentColorImage</item>
+        <item>transparentColorPreview</item>
     </string-array>
 
 </resources>
