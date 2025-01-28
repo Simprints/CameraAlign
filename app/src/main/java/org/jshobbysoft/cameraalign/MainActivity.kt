@@ -15,12 +15,12 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.SeekBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -34,7 +34,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.preference.PreferenceManager
-import com.google.android.material.snackbar.Snackbar
 import org.jshobbysoft.cameraalign.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -113,8 +112,7 @@ class MainActivity : AppCompatActivity() {
         // Load from gallery
         viewBinding.buttonLoadPicture.setOnClickListener {
             val galleryIntent = Intent(
-                Intent.ACTION_OPEN_DOCUMENT,
-                MediaStore.Images.Media.INTERNAL_CONTENT_URI
+                Intent.ACTION_OPEN_DOCUMENT, MediaStore.Images.Media.INTERNAL_CONTENT_URI
             )
             resultLauncher.launch(galleryIntent)
         }
@@ -152,10 +150,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Zoom seek bar
-        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        viewBinding.zoomSeekBar.setOnSeekBarChangeListener(object :
+            SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 camera?.cameraControl?.setLinearZoom(progress / 100f)
             }
+
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
@@ -194,9 +194,7 @@ class MainActivity : AppCompatActivity() {
                 startCamera(cameraSel)
             } else {
                 Toast.makeText(
-                    this,
-                    "Permissions not granted by the user.",
-                    Toast.LENGTH_SHORT
+                    this, "Permissions not granted by the user.", Toast.LENGTH_SHORT
                 ).show()
                 finish()
             }
@@ -235,8 +233,9 @@ class MainActivity : AppCompatActivity() {
         val imageCapture = imageCapture ?: return
 
         // Create time-stamped name and MediaStore entry
-        val name = "$imageName-${SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())}"
+        val name = "$imageName-${
+            SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis())
+        }"
 
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
@@ -246,13 +245,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            .build()
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(
+            contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        ).build()
 
         // Capture the picture
-        imageCapture.takePicture(
-            outputOptions,
+        imageCapture.takePicture(outputOptions,
             cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
@@ -262,12 +262,11 @@ class MainActivity : AppCompatActivity() {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     // Save zoom in Exif
                     output.savedUri?.let { savedUri ->
-                        saveExifZoom(savedUri)
-                        showCaptureSnackbar(savedUri)
+                        cameraExecutor.execute { saveExifZoom(savedUri) }
+                        showCaptureToast()
                     }
                 }
-            }
-        )
+            })
     }
 
     /**
@@ -288,14 +287,13 @@ class MainActivity : AppCompatActivity() {
     /**
      * Show a Snackbar indicating successful capture, including the file path.
      */
-    private fun showCaptureSnackbar(savedUri: Uri) {
-        val photoPath = getPath(applicationContext, savedUri)
-        val msg = "Photo capture succeeded: $photoPath"
-        val snackbar = Snackbar.make(viewBinding.root, msg, Snackbar.LENGTH_LONG)
-        val sbView: View = snackbar.view
-        val textView: TextView = sbView.findViewById(com.google.android.material.R.id.snackbar_text)
-        textView.maxLines = 4
-        snackbar.show()
+    private fun showCaptureToast() {
+        runOnUiThread {
+            val toast =
+                Toast.makeText(applicationContext, "Photo capture succeeded", Toast.LENGTH_LONG)
+            toast.setGravity(Gravity.TOP, 0, 0)
+            toast.show()
+        }
     }
 
     /**
@@ -308,14 +306,14 @@ class MainActivity : AppCompatActivity() {
         imageName = "$id-$imageType"
 
         when (imageType) {
-            "left_ear"  -> viewBinding.basisImage.setImageResource(R.drawable.ear_left)
+            "left_ear" -> viewBinding.basisImage.setImageResource(R.drawable.ear_left)
             "right_ear" -> viewBinding.basisImage.setImageResource(R.drawable.ear_right)
             "left_foot" -> viewBinding.basisImage.setImageResource(R.drawable.foot_left)
-            "right_foot"-> viewBinding.basisImage.setImageResource(R.drawable.foot_right)
+            "right_foot" -> viewBinding.basisImage.setImageResource(R.drawable.foot_right)
             "left_hand" -> viewBinding.basisImage.setImageResource(R.drawable.hand_left)
-            "right_hand"-> viewBinding.basisImage.setImageResource(R.drawable.hand_right)
-            "head"      -> viewBinding.basisImage.setImageResource(R.drawable.head)
-            else        -> setBasisImage(null)
+            "right_hand" -> viewBinding.basisImage.setImageResource(R.drawable.hand_right)
+            "head" -> viewBinding.basisImage.setImageResource(R.drawable.head)
+            else -> setBasisImage(null)
         }
 
         // Hide UI elements that aren't needed in this mode
@@ -359,10 +357,11 @@ class MainActivity : AppCompatActivity() {
             contentResolver.openFileDescriptor(uri, readOnlyMode).use { pfd ->
                 pfd?.fileDescriptor?.let { fd ->
                     val exif = ExifInterface(fd)
-                    exif.getAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO)?.toFloat()?.let { zoom ->
-                        viewBinding.zoomSeekBar.progress = zoom.toInt()
-                        camera?.cameraControl?.setLinearZoom(zoom / 100f)
-                    }
+                    exif.getAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO)?.toFloat()
+                        ?.let { zoom ->
+                            viewBinding.zoomSeekBar.progress = zoom.toInt()
+                            camera?.cameraControl?.setLinearZoom(zoom / 100f)
+                        }
                 }
             }
         } catch (e: Exception) {
@@ -433,6 +432,7 @@ class MainActivity : AppCompatActivity() {
                         return Environment.getExternalStorageDirectory().toString() + "/" + split[1]
                     }
                 }
+
                 isDownloadsDocument(uri) -> {
                     val id = DocumentsContract.getDocumentId(uri)
                     val contentUri = ContentUris.withAppendedId(
@@ -440,6 +440,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     return getDataColumn(context!!, contentUri, null, null)
                 }
+
                 isMediaDocument(uri) -> {
                     val docId = DocumentsContract.getDocumentId(uri)
                     val split = docId.split(":")
@@ -454,6 +455,7 @@ class MainActivity : AppCompatActivity() {
                     val selectionArgs = arrayOf<String?>(split[1])
                     return getDataColumn(context!!, contentUri, selection, selectionArgs)
                 }
+
                 else -> {
                     // LocalStorageProvider - the path is the docId itself
                     return DocumentsContract.getDocumentId(uri)
@@ -475,16 +477,14 @@ class MainActivity : AppCompatActivity() {
      * Query the system for the _data column matching the given Uri.
      */
     private fun getDataColumn(
-        context: Context,
-        uri: Uri?,
-        selection: String?,
-        selectionArgs: Array<String?>?
+        context: Context, uri: Uri?, selection: String?, selectionArgs: Array<String?>?
     ): String? {
         var cursor: Cursor? = null
         val column = "_data"
         val projection = arrayOf(column)
         return try {
-            cursor = context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
+            cursor =
+                context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
             if (cursor != null && cursor.moveToFirst()) {
                 val columnIndex = cursor.getColumnIndexOrThrow(column)
                 cursor.getString(columnIndex)
@@ -501,8 +501,7 @@ class MainActivity : AppCompatActivity() {
     private fun isDownloadsDocument(uri: Uri) =
         "com.android.providers.downloads.documents" == uri.authority
 
-    private fun isMediaDocument(uri: Uri) =
-        "com.android.providers.media.documents" == uri.authority
+    private fun isMediaDocument(uri: Uri) = "com.android.providers.media.documents" == uri.authority
 
     private fun isGooglePhotosUri(uri: Uri) =
         "com.google.android.apps.photos.content" == uri.authority
@@ -521,6 +520,7 @@ class MainActivity : AppCompatActivity() {
                 startActivity(settingsIntent)
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
