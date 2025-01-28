@@ -25,6 +25,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
@@ -310,6 +312,25 @@ class MainActivity : AppCompatActivity() {
             "head" -> viewBinding.basisImage.setImageResource(R.drawable.head)
             else -> setBasisImage(null)
         }
+
+        val basisImageConstraint = when (imageType) {
+            "left_ear" -> 0.75f
+            "right_ear" -> 0.75f
+            "left_foot" -> 1f
+            "right_foot" -> 1f
+            "left_hand" -> 0.95f
+            "right_hand" -> 0.95f
+            "head" -> 0.75f
+            else -> 0.75f
+        }
+
+        val view = findViewById<View>(R.id.basisImage)
+        val params = view.layoutParams as ConstraintLayout.LayoutParams
+
+        params.matchConstraintPercentWidth = basisImageConstraint
+
+        view.layoutParams = params
+        view.requestLayout()
 
         // Hide UI elements that aren't needed in this mode
         viewBinding.imageHflipButton.visibility = View.GONE
