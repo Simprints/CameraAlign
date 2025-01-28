@@ -3,17 +3,12 @@ package org.jshobbysoft.cameraalign
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.ContentUris
 import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.view.Gravity
 import android.view.Menu
@@ -130,13 +125,13 @@ class MainActivity : AppCompatActivity() {
         // Vertical flip button
         viewBinding.imageVflipButton.setOnClickListener {
             // Flip across the vertical axis => scaleX toggles -1 / 1
-            vflipState = toggleFlip(viewBinding.basisImage.scaleX, vflipState, true)
+            vflipState = toggleFlip(vflipState, true)
         }
 
         // Horizontal flip button
         viewBinding.imageHflipButton.setOnClickListener {
             // Flip across the horizontal axis => scaleY toggles -1 / 1
-            hflipState = toggleFlip(viewBinding.basisImage.scaleY, hflipState, false)
+            hflipState = toggleFlip(hflipState, false)
         }
 
         // Front/back camera toggle
@@ -164,7 +159,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * Simple helper to toggle the scale factor on the X or Y axis.
      */
-    private fun toggleFlip(currentScale: Float, flipState: Int, isVerticalAxis: Boolean): Int {
+    private fun toggleFlip(flipState: Int, isVerticalAxis: Boolean): Int {
         val newState = if (flipState == 1) -1 else 1
         val scale = if (newState == 1) 1f else -1f
         if (isVerticalAxis) {
@@ -417,94 +412,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-    /**
-     * Resolve a Uri to an absolute file path, handling various providers (downloads, media, etc.).
-     */
-    fun getPath(context: Context?, uri: Uri): String? {
-        if (DocumentsContract.isDocumentUri(context, uri)) {
-            when {
-                isExternalStorageDocument(uri) -> {
-                    val docId = DocumentsContract.getDocumentId(uri)
-                    val split = docId.split(":")
-                    val type = split[0]
-                    if ("primary".equals(type, true)) {
-                        return Environment.getExternalStorageDirectory().toString() + "/" + split[1]
-                    }
-                }
-
-                isDownloadsDocument(uri) -> {
-                    val id = DocumentsContract.getDocumentId(uri)
-                    val contentUri = ContentUris.withAppendedId(
-                        Uri.parse("content://downloads/public_downloads"), id.toLong()
-                    )
-                    return getDataColumn(context!!, contentUri, null, null)
-                }
-
-                isMediaDocument(uri) -> {
-                    val docId = DocumentsContract.getDocumentId(uri)
-                    val split = docId.split(":")
-                    val type = split[0]
-                    val contentUri = when (type) {
-                        "image" -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                        "video" -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                        "audio" -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                        else -> null
-                    }
-                    val selection = "_id=?"
-                    val selectionArgs = arrayOf<String?>(split[1])
-                    return getDataColumn(context!!, contentUri, selection, selectionArgs)
-                }
-
-                else -> {
-                    // LocalStorageProvider - the path is the docId itself
-                    return DocumentsContract.getDocumentId(uri)
-                }
-            }
-        } else if ("content".equals(uri.scheme, true)) {
-            return if (isGooglePhotosUri(uri)) {
-                uri.lastPathSegment
-            } else {
-                getDataColumn(context!!, uri, null, null)
-            }
-        } else if ("file".equals(uri.scheme, true)) {
-            return uri.path
-        }
-        return null
-    }
-
-    /**
-     * Query the system for the _data column matching the given Uri.
-     */
-    private fun getDataColumn(
-        context: Context, uri: Uri?, selection: String?, selectionArgs: Array<String?>?
-    ): String? {
-        var cursor: Cursor? = null
-        val column = "_data"
-        val projection = arrayOf(column)
-        return try {
-            cursor =
-                context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
-            if (cursor != null && cursor.moveToFirst()) {
-                val columnIndex = cursor.getColumnIndexOrThrow(column)
-                cursor.getString(columnIndex)
-            } else null
-        } finally {
-            cursor?.close()
-        }
-    }
-
-    // Authority checks
-    private fun isExternalStorageDocument(uri: Uri) =
-        "com.android.externalstorage.documents" == uri.authority
-
-    private fun isDownloadsDocument(uri: Uri) =
-        "com.android.providers.downloads.documents" == uri.authority
-
-    private fun isMediaDocument(uri: Uri) = "com.android.providers.media.documents" == uri.authority
-
-    private fun isGooglePhotosUri(uri: Uri) =
-        "com.google.android.apps.photos.content" == uri.authority
 
     // Menu / settings handling
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
