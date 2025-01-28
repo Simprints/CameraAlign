@@ -25,6 +25,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
@@ -118,7 +120,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Rotate image
-        viewBinding.imageRotateButton.setOnClickListener {
+        viewBinding.cameraFlipButton.setOnClickListener {
             viewBinding.basisImage.rotation += 90f
         }
 
@@ -135,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Front/back camera toggle
-        viewBinding.cameraFlipButton.setOnClickListener {
+        viewBinding.imageRotateButton.setOnClickListener {
             cameraSel = if (cameraSel == CameraSelector.DEFAULT_FRONT_CAMERA) {
                 CameraSelector.DEFAULT_BACK_CAMERA
             } else {
@@ -311,11 +313,31 @@ class MainActivity : AppCompatActivity() {
             else -> setBasisImage(null)
         }
 
+        val basisImageConstraint = when (imageType) {
+            "left_ear" -> 0.75f
+            "right_ear" -> 0.75f
+            "left_foot" -> 0.90f
+            "right_foot" -> 0.90f
+            "left_hand" -> 0.95f
+            "right_hand" -> 0.95f
+            "head" -> 0.75f
+            else -> 0.75f
+        }
+
+        val view = findViewById<View>(R.id.basisImage)
+        val params = view.layoutParams as ConstraintLayout.LayoutParams
+
+        params.matchConstraintPercentWidth = basisImageConstraint
+
+        view.layoutParams = params
+        view.requestLayout()
+
         // Hide UI elements that aren't needed in this mode
         viewBinding.imageHflipButton.visibility = View.GONE
         viewBinding.imageVflipButton.visibility = View.GONE
-        viewBinding.imageRotateButton.visibility = View.GONE
+        viewBinding.cameraFlipButton.visibility = View.GONE
         viewBinding.buttonLoadPicture.visibility = View.GONE
+        viewBinding.zoomSeekBar.visibility = View.GONE
     }
 
     /**

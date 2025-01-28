@@ -47,7 +47,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="16dp"
         android:layout_marginEnd="8dp"
-        app:layout_constraintBottom_toTopOf="@id/camera_flip_button"
+        app:layout_constraintBottom_toTopOf="@id/image_capture_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
@@ -59,27 +59,11 @@
         android:layout_marginEnd="@dimen/marginValue"
         android:layout_marginBottom="@dimen/marginValueBottom"
         android:elevation="2dp"
-        android:text="@string/front_back_camera_string"
+        android:text="@string/rotate_image_string"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/image_capture_button"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!--
-        <ImageButton
-            android:id="@+id/camera_flip_button"
-            android:layout_width="@dimen/buttonWidth"
-            android:layout_height="@dimen/buttonHeight"
-            android:layout_marginStart="@dimen/marginValue"
-            android:layout_marginEnd="@dimen/marginValue"
-            android:layout_marginBottom="@dimen/marginValueBottom"
-            android:elevation="2dp"
-            android:contentDescription="@string/front_back_camera_string"
-            android:src="@drawable/ic_flip_camera_blue_foreground"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/image_capture_button" />
-
-    -->
     <Button
         android:id="@+id/image_capture_button"
         android:layout_width="@dimen/buttonWidth"
@@ -92,24 +76,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/buttonLoadPicture"
         app:layout_constraintStart_toEndOf="@id/camera_flip_button" />
-
-
-    <!--
-        <EditText
-            android:id="@+id/transET"
-            android:layout_width="@dimen/buttonWidth"
-            android:layout_height="@dimen/buttonHeight"
-            android:layout_marginStart="@dimen/marginValue"
-            android:layout_marginEnd="@dimen/marginValue"
-            android:layout_marginBottom="@dimen/marginValueBottom"
-            android:inputType="numberDecimal"
-            android:text="@string/etTransLabel"
-            android:autofillHints="0.5"
-            android:hint="@string/etHint"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/buttonLoadPicture"
-            app:layout_constraintStart_toEndOf="@id/image_rotate_button" />
-    -->
 
     <Button
         android:id="@+id/buttonLoadPicture"
@@ -168,7 +134,7 @@
         android:layout_marginEnd="@dimen/marginValue"
         android:layout_marginBottom="@dimen/marginValueBottom"
         android:elevation="2dp"
-        android:text="@string/rotate_image_string"
+        android:text="@string/front_back_camera_string"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/image_hflip_button"
         app:layout_constraintTop_toTopOf="parent" />
