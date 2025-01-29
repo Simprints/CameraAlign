@@ -17,6 +17,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
@@ -82,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Handle incoming intent (if any)
-        if (intent.getStringExtra("image") != null) {
+        if (!intent.getStringExtra("image").isNullOrEmpty()) {
             setImageFromIntent()
         } else {
             // Load saved background if available
@@ -98,8 +99,28 @@ class MainActivity : AppCompatActivity() {
         // Set up UI listeners (buttons, seek bars, etc.)
         initUIListeners()
 
+        // Handle back button
+        setOnBackPressedHandle()
+
         // Initialize camera executor
         cameraExecutor = Executors.newSingleThreadExecutor()
+    }
+
+    private fun setOnBackPressedHandle() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+
+                if (callingActivity != null) {
+                    setResult(RESULT_OK, Intent().apply {
+                        putExtra("empty", "empty")
+                    })
+                    finish()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 
     /**
