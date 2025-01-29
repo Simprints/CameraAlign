@@ -335,10 +335,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         val basisImageConstraint = when (imageType) {
-            "left_ear" -> 0.75f
-            "right_ear" -> 0.75f
-            "left_foot" -> 0.90f
-            "right_foot" -> 0.90f
+            "left_ear" -> 0.90f
+            "right_ear" -> 0.90f
+            "left_foot" -> 0.85f
+            "right_foot" -> 0.85f
             "left_hand" -> 0.95f
             "right_hand" -> 0.95f
             "head" -> 0.75f
